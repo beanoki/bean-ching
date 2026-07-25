@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>I Ching Oracle</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h1 { font-size: 1.4em; }
+  button { font-size: 1em; padding: 10px 18px; cursor: pointer; margin: 10px 0; }
+  .hexagram { display: flex; flex-direction: column-reverse; gap: 6px; width: 140px; margin: 16px 0; }
+  .line { height: 10px; display: flex; gap: 14px; position: relative; }
+  .line .bar { background: #222; height: 100%; flex: 1; }
+  .line.yin .bar { flex: 0 0 45%; }
+  .line .mark { position: absolute; right: -20px; top: -3px; font-size: 12px; color: #b33; font-weight: bold; }
+  .card { border: 1px solid #ccc; padding: 12px 16px; margin: 10px 0; }
+  .small { color: #666; font-size: 0.9em; }
+  .arrow { margin: 14px 0; font-size: 1.2em; }
+  #question { width: 100%; box-sizing: border-box; padding: 6px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<h1>I Ching Oracle</h1>
+<p class="small">Three-coin method. Click to cast a hexagram.</p>
+<button id="castBtn">Cast Hexagram</button>
+
+<div id="result"></div>
+
+<script>
+// ---- 64 hexagrams, King Wen order. lines: bottom-to-top, 1=yang 0=yin ----
+const HEXAGRAMS = [
+{n:1,cn:"乾",py:"Qián",name:"The Creative",kw:"Initiating",lines:[1,1,1,1,1,1],text:"Pure unbroken energy. A time to begin and lead with confidence, paired with patience and integrity rather than force."},
+{n:2,cn:"坤",py:"Kūn",name:"The Receptive",kw:"Yielding",lines:[0,0,0,0,0,0],text:"Earth's quiet, all-yielding strength. Progress comes through receiving and supporting rather than pushing."},
+{n:3,cn:"屯",py:"Zhūn",name:"Sprouting",kw:"Emergence",lines:[1,0,0,0,1,0],text:"A seed straining to break the soil. Early stages are tangled; gather allies and stay flexible."},
+{n:4,cn:"蒙",py:"Méng",name:"Enveloping",kw:"Inexperience",lines:[0,1,0,0,0,1],text:"Inexperience facing a fog-bound mountain. Ask honestly and accept correction instead of pretending to know."},
+{n:5,cn:"需",py:"Xū",name:"Waiting",kw:"Patience",lines:[1,1,1,0,1,0],text:"Clouds gathering before rain. The moment isn't ripe; nourish your strength and let conditions arrive."},
+{n:6,cn:"訟",py:"Sòng",name:"Conflict",kw:"Contention",lines:[0,1,0,1,1,1],text:"A dispute is brewing. Seek honest mediation before pride turns disagreement into a deeper rift."},
+{n:7,cn:"師",py:"Shī",name:"The Army",kw:"Discipline",lines:[0,1,0,0,0,0],text:"Discipline holding many people to one purpose. Organization and restraint, not aggression, mobilize others."},
+{n:8,cn:"比",py:"Bǐ",name:"Holding Together",kw:"Alliance",lines:[0,0,0,0,1,0],text:"Water settling into the lowest ground. Alliances form naturally around something trustworthy."},
+{n:9,cn:"小畜",py:"Xiǎo Xù",name:"Small Accumulating",kw:"Restraint",lines:[1,1,1,0,1,1],text:"Wind gathering just above heaven. Big ambitions wait; modest, repeated effort prepares the way."},
+{n:10,cn:"履",py:"Lǚ",name:"Treading",kw:"Conduct",lines:[1,1,0,1,1,1],text:"Walking carefully near a tiger. Tact and correct conduct keep the journey safe right now."},
+{n:11,cn:"泰",py:"Tài",name:"Peace",kw:"Harmony",lines:[1,1,1,0,0,0],text:"Heaven rising, earth settling — a season of harmony and easy exchange. Use the calm well."},
+{n:12,cn:"否",py:"Pǐ",name:"Standstill",kw:"Stagnation",lines:[0,0,0,1,1,1],text:"Heaven and earth pulling apart, communication stalled. Withdraw to smaller honest commitments and wait."},
+{n:13,cn:"同人",py:"Tóngrén",name:"Fellowship",kw:"Community",lines:[1,0,1,1,1,1],text:"Fire rising to meet open heaven. Fellowship needs honesty and a cause bigger than one preference."},
+{n:14,cn:"大有",py:"Dà Yǒu",name:"Great Possession",kw:"Abundance",lines:[1,1,1,1,0,1],text:"The sun at its height. Resources are abundant; use them with humility instead of being swelled by them."},
+{n:15,cn:"謙",py:"Qiān",name:"Modesty",kw:"Humility",lines:[0,0,1,0,0,0],text:"A mountain resting quietly beneath the earth. Restraint and unclaimed merit carry more weight than display."},
+{n:16,cn:"豫",py:"Yù",name:"Enthusiasm",kw:"Inspiration",lines:[0,0,0,1,0,0],text:"Thunder breaking over the earth. Sincere enthusiasm inspires others; channel momentum, don't let it scatter."},
+{n:17,cn:"隨",py:"Suí",name:"Following",kw:"Adaptation",lines:[1,0,0,1,1,0],text:"Thunder beneath an open lake. Influence works now through example and willingness to adjust."},
+{n:18,cn:"蠱",py:"Gǔ",name:"Work on the Decayed",kw:"Repair",lines:[0,1,1,0,0,1],text:"Neglect has been allowed to settle. Old mistakes need honest, patient repair before anything new can stand."},
+{n:19,cn:"臨",py:"Lín",name:"Approach",kw:"Advance",lines:[1,1,0,0,0,0],text:"A lake rising toward the earth above. Opportunity is advancing; treat the growing position with care."},
+{n:20,cn:"觀",py:"Guān",name:"Contemplation",kw:"Observation",lines:[0,0,0,0,1,1],text:"Wind moving over the earth, observing without disturbing. Step back before acting."},
+{n:21,cn:"噬嗑",py:"Shìkè",name:"Biting Through",kw:"Resolve",lines:[1,0,0,1,0,1],text:"An obstacle lodged between. Firm, decisive action — without cruelty — clears the blockage."},
+{n:22,cn:"賁",py:"Bì",name:"Grace",kw:"Beauty",lines:[1,0,1,0,0,1],text:"Fire glowing at the foot of a mountain. Presentation matters only as a complement to real substance."},
+{n:23,cn:"剝",py:"Bō",name:"Splitting Apart",kw:"Erosion",lines:[0,0,0,0,0,1],text:"Decline has set in. Withdraw, conserve, and wait rather than resist what's already eroding."},
+{n:24,cn:"復",py:"Fù",name:"Return",kw:"Renewal",lines:[1,0,0,0,0,0],text:"One stirring line beneath five yielding ones — the first sign of a turn. Move with it gradually."},
+{n:25,cn:"无妄",py:"Wúwàng",name:"Innocence",kw:"Sincerity",lines:[1,0,0,1,1,1],text:"Thunder beneath open heaven, spontaneous and unplanned. Honest, uncalculated motive brings good results."},
+{n:26,cn:"大畜",py:"Dà Xù",name:"Great Accumulating",kw:"Cultivation",lines:[1,1,1,0,0,1],text:"A mountain holding heaven's strength in reserve. What's gathered patiently becomes available for later use."},
+{n:27,cn:"頤",py:"Yí",name:"Nourishment",kw:"Sustenance",lines:[1,0,0,0,0,1],text:"The shape of a jaw quietly working. Pay attention to what you take in and what you offer others."},
+{n:28,cn:"大過",py:"Dà Guò",name:"Great Exceeding",kw:"Overreach",lines:[0,1,1,1,1,0],text:"A beam sagging under more weight than it was built for. Extraordinary times call for careful, unusual measures."},
+{n:29,cn:"坎",py:"Kǎn",name:"The Abysmal",kw:"Danger",lines:[0,1,0,0,1,0],text:"Water repeating over water. Move through difficulty steadily, the way water always finds a way around."},
+{n:30,cn:"離",py:"Lí",name:"The Clinging",kw:"Illumination",lines:[1,0,1,1,0,1],text:"Brightness sustained by clinging to fuel beneath it. Stay anchored to what actually supports your clarity."},
+{n:31,cn:"咸",py:"Xián",name:"Influence",kw:"Attraction",lines:[0,0,1,1,1,0],text:"A lake responding to the mountain above it. Let connection develop through genuine responsiveness."},
+{n:32,cn:"恆",py:"Héng",name:"Duration",kw:"Constancy",lines:[0,1,1,1,0,0],text:"Thunder and wind sustaining each other in steady rhythm. Lasting results come from consistency over time."},
+{n:33,cn:"遯",py:"Dùn",name:"Retreat",kw:"Withdrawal",lines:[0,0,1,1,1,1],text:"Mountain standing still beneath advancing heaven. Strategic withdrawal at the right moment protects what matters."},
+{n:34,cn:"大壯",py:"Dà Zhuàng",name:"Great Power",kw:"Vigor",lines:[1,1,1,1,0,0],text:"Thunder breaking out above heaven's strength. Use this power deliberately, and stop before it becomes excess."},
+{n:35,cn:"晉",py:"Jìn",name:"Progress",kw:"Advancement",lines:[0,0,0,1,0,1],text:"The sun rising over open earth. Move forward with sincerity; others are watching your new visibility."},
+{n:36,cn:"明夷",py:"Míngyí",name:"Darkening of the Light",kw:"Concealment",lines:[1,0,1,0,0,0],text:"Fire sinking below the earth's surface. Protect your inner clarity quietly when conditions are hostile."},
+{n:37,cn:"家人",py:"Jiārén",name:"The Family",kw:"Belonging",lines:[1,0,1,0,1,1],text:"Fire warmed by wind from within a household. Tend close relationships first; their order steadies everything else."},
+{n:38,cn:"睽",py:"Kuí",name:"Opposition",kw:"Divergence",lines:[1,1,0,1,0,1],text:"Fire and lake moving apart despite shared origin. Small, careful steps toward common ground work best."},
+{n:39,cn:"蹇",py:"Jiǎn",name:"Obstruction",kw:"Difficulty",lines:[0,0,1,0,1,0],text:"Water blocking the way up a mountain. This calls for allies and patience, not trying to push through alone."},
+{n:40,cn:"解",py:"Jiě",name:"Deliverance",kw:"Release",lines:[0,1,0,1,0,0],text:"Thunder breaking free above water, tension releasing. Act promptly to consolidate the relief."},
+{n:41,cn:"損",py:"Sǔn",name:"Decrease",kw:"Reduction",lines:[1,1,0,0,0,1],text:"A lake's waters drawn up to nourish a mountain. What's given up now, handled with sincerity, benefits what remains."},
+{n:42,cn:"益",py:"Yì",name:"Increase",kw:"Benefit",lines:[1,0,0,0,1,1],text:"Wind and thunder reinforcing each other. Use the surplus generously rather than hoarding it."},
+{n:43,cn:"夬",py:"Guài",name:"Breakthrough",kw:"Resolution",lines:[1,1,1,1,1,0],text:"Open water nearly overtopping heaven — one last resistance about to give way. Press forward firmly but openly."},
+{n:44,cn:"姤",py:"Gòu",name:"Coming to Meet",kw:"Encounter",lines:[0,1,1,1,1,1],text:"A single yielding line beneath five strong ones. Be alert to what's quietly entering, and choose carefully."},
+{n:45,cn:"萃",py:"Cuì",name:"Gathering Together",kw:"Convergence",lines:[0,0,0,1,1,0],text:"A lake collecting above the earth. Lead the gathering with sincerity so it doesn't dissolve."},
+{n:46,cn:"升",py:"Shēng",name:"Pushing Upward",kw:"Ascent",lines:[0,1,1,0,0,0],text:"Wood growing steadily out of the earth toward the light. Advancement is gradual; keep nurturing the conditions."},
+{n:47,cn:"困",py:"Kùn",name:"Oppression",kw:"Exhaustion",lines:[0,1,0,1,1,0],text:"A lake drained dry over still water. Keep your inner resolve intact even when conditions offer little support."},
+{n:48,cn:"井",py:"Jǐng",name:"The Well",kw:"Resource",lines:[0,1,1,0,1,0],text:"Wind drawing water up from below the earth. What sustains others needs regular tending so it doesn't run dry."},
+{n:49,cn:"革",py:"Gé",name:"Revolution",kw:"Transformation",lines:[1,0,1,1,1,0],text:"Fire transforming what a lake holds. Decisive change is appropriate once the need is unmistakable."},
+{n:50,cn:"鼎",py:"Dǐng",name:"The Cauldron",kw:"Refinement",lines:[0,1,1,1,0,1],text:"Wind feeding fire beneath a vessel. A season for refining what you have into something more shared and useful."},
+{n:51,cn:"震",py:"Zhèn",name:"The Arousing",kw:"Shock",lines:[1,0,0,1,0,0],text:"Thunder doubled, shock following shock. Steady composure, not panic, is the right response."},
+{n:52,cn:"艮",py:"Gèn",name:"Keeping Still",kw:"Stillness",lines:[0,0,1,0,0,1],text:"Mountain resting on mountain. Real calm comes from being settled enough that disturbance passes through."},
+{n:53,cn:"漸",py:"Jiàn",name:"Development",kw:"Gradualness",lines:[0,0,1,0,1,1],text:"A tree growing slowly on a mountainside. Lasting advancement happens step by step, in the right order."},
+{n:54,cn:"歸妹",py:"Guī Mèi",name:"The Marrying Maiden",kw:"Subordination",lines:[1,1,0,1,0,0],text:"Entering a situation where you hold less power than usual. Acting with integrity matters more than controlling its terms."},
+{n:55,cn:"豐",py:"Fēng",name:"Abundance",kw:"Fullness",lines:[1,0,1,1,0,0],text:"Thunder and fire together at their fullest pitch. Plenty has arrived, often briefly — use it well."},
+{n:56,cn:"旅",py:"Lǚ",name:"The Wanderer",kw:"Transience",lines:[0,0,1,1,0,1],text:"Fire carried along a mountainside, light that doesn't stay in one place. Travel light and stay adaptable."},
+{n:57,cn:"巽",py:"Xùn",name:"The Gentle",kw:"Penetration",lines:[0,1,1,0,1,1],text:"Wind upon wind, influence by steady penetration rather than force. Persistence accomplishes what confrontation can't."},
+{n:58,cn:"兌",py:"Duì",name:"The Joyous",kw:"Delight",lines:[1,1,0,1,1,0],text:"Open water meeting open water. Genuine joy, expressed honestly, strengthens connection — let it come from real contentment."},
+{n:59,cn:"渙",py:"Huàn",name:"Dispersion",kw:"Dissolving",lines:[0,1,0,0,1,1],text:"Wind moving over water, scattering what had gathered tightly. This can be healing if approached with sincerity."},
+{n:60,cn:"節",py:"Jié",name:"Limitation",kw:"Moderation",lines:[1,1,0,0,1,0],text:"Water held within the banks of a lake. Useful structure comes from accepted limits — find the workable middle."},
+{n:61,cn:"中孚",py:"Zhōngfú",name:"Inner Truth",kw:"Sincerity",lines:[1,1,0,0,1,1],text:"Wind moving over an open lake, sensing what's beneath the surface. Trust quiet authenticity over persuasion."},
+{n:62,cn:"小過",py:"Xiǎoguò",name:"Small Exceeding",kw:"Caution",lines:[0,0,1,1,0,0],text:"Thunder over a mountain, modest overreach. Attend to small details and stay within proportion."},
+{n:63,cn:"既濟",py:"Jìjì",name:"After Completion",kw:"Culmination",lines:[1,0,1,0,1,0],text:"Fire beneath water, every line in perfect order — a cycle resolved. Completion is real but unstable; stay alert."},
+{n:64,cn:"未濟",py:"Wèijì",name:"Before Completion",kw:"Threshold",lines:[0,1,0,1,0,1],text:"Water beneath fire, not yet settled — the final approach to a goal not yet reached. Haste now is the likeliest way to lose it."}
+];
+
+const byPattern = {};
+HEXAGRAMS.forEach(h => byPattern[h.lines.join("")] = h);
+
+// Traditional three-coin method: heads=3 (yang), tails=2 (yin), sum three coins per line.
+// TTT=6 old yin (changing), one-head=7 young yang (stable),
+// two-heads=8 young yin (stable), HHH=9 old yang (changing).
+// This naturally weights toward stable lines (75% stable / 25% changing per line).
+function flipCoin() { return Math.random() < 0.5 ? 3 : 2; }
+
+function castLine() {
+  const sum = flipCoin() + flipCoin() + flipCoin(); // 6, 7, 8, or 9
+  if (sum === 6) return {type:0, changing:true};  // old yin  -> changes to yang
+  if (sum === 9) return {type:1, changing:true};  // old yang -> changes to yin
+  if (sum === 7) return {type:1, changing:false}; // young yang, stable
+  return {type:0, changing:false};                // sum===8, young yin, stable
+}
+
+// PLACEHOLDER per-line meanings, by position only (1=bottom ... 6=top).
+// Traditionally every hexagram has its own unique text per line (384 total) —
+// these are generic stand-ins based on classical line-position symbolism,
+// meant to be swapped out later for real per-hexagram-per-line content.
+const LINE_MEANINGS = [
+  "Line 1 — the beginning. A shift right at the root of the situation, before much has taken shape.",
+  "Line 2 — the inner ground. A shift in how you're personally holding or responding to things.",
+  "Line 3 — the turning point. A shift at the seam between where this started and where it's headed — often the least stable position.",
+  "Line 4 — stepping into view. A shift as the situation moves from private to more exposed ground.",
+  "Line 5 — the leading position. A shift at the point of greatest influence or responsibility.",
+  "Line 6 — the furthest extreme. A shift once things have gone as far as they can go, for better or worse."
+];
+
+function renderHexagram(lines, changingArr) {
+  // lines: array bottom-to-top of 1/0. changingArr: array of booleans (optional)
+  let html = '<div class="hexagram">';
+  for (let i = 0; i < 6; i++) {
+    const isYang = lines[i] === 1;
+    const changing = changingArr && changingArr[i];
+    html += `<div class="line ${isYang ? 'yang' : 'yin'}">`;
+    if (isYang) html += '<div class="bar"></div>';
+    else html += '<div class="bar"></div><div class="bar"></div>';
+    if (changing) html += `<span class="mark">${isYang ? 'o' : 'x'}</span>`;
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function cast() {
+  const castLines = [];
+  for (let i = 0; i < 6; i++) castLines.push(castLine());
+
+  const primaryPattern = castLines.map(l => l.type).join("");
+  const primary = byPattern[primaryPattern];
+  const changingPositions = castLines.map((l, i) => l.changing ? i : -1).filter(i => i >= 0);
+
+  let resulting = null;
+  let resultPattern = null;
+  if (changingPositions.length > 0) {
+    resultPattern = castLines.map(l => l.changing ? (1 - l.type) : l.type).join("");
+    resulting = byPattern[resultPattern];
+  }
+
+  let out = `<div class="card">
+    <h2>${primary.n}. ${primary.name} <span class="small">(${primary.cn} ${primary.py})</span></h2>
+    ${renderHexagram(castLines.map(l=>l.type), castLines.map(l=>l.changing))}
+    <p><strong>${primary.kw}.</strong> ${primary.text}</p>
+  </div>`;
+
+  if (resulting) {
+    const lineList = changingPositions.map(i =>
+      `<div class="card"><p class="small">${LINE_MEANINGS[i]}</p></div>`
+    ).join("");
+    out += `<div class="arrow">↓ changing line(s) — shifting from <em>${primary.kw}</em> toward <em>${resulting.kw}</em></div>`;
+    out += lineList;
+    out += `<div class="card">
+      <h2>${resulting.n}. ${resulting.name} <span class="small">(${resulting.cn} ${resulting.py})</span></h2>
+      ${renderHexagram(resulting.lines)}
+      <p><strong>${resulting.kw}.</strong> ${resulting.text}</p>
+    </div>`;
+  } else {
+    out += `<p class="small">No changing lines — this hexagram stands as is.</p>`;
+  }
+
+  document.getElementById('result').innerHTML = out;
+}
+
+document.getElementById('castBtn').addEventListener('click', cast);
+</script>
+</body>
+</html>
